@@ -61,7 +61,7 @@ tst$totals.pageviews <- as.integer(tst$totals.pageviews)
 # Get number of visits for each visitor
 getNumVisits <- function(df){
     numVisits <- as.data.frame(table(df$fullVisitorId))
-    names(numVisits) <- c('fullVisitorId', 'num.visits')
+    names(numVisits) <- c('fullVisitorId', 'numVisits')
     numVisits$fullVisitorId <- as.character(numVisits$fullVisitorId)
     
     df <- merge(df, numVisits, all.x=TRUE)
@@ -72,13 +72,51 @@ getNumVisits <- function(df){
 trn <- getNumVisits(trn)
 tst <- getNumVisits(tst)
 
+# Create correct target variable
+trncomplete <- trn[!is.na(trn$totals.transactionRevenue),]
+target <- data.frame(fullVisitorId=names(log(tapply(trncomplete$totals.transactionRevenue, trncomplete$fullVisitorId, sum, na.rm=T) + 1)), 
+                    target=log(as.numeric(tapply(trncomplete$totals.transactionRevenue, trncomplete$fullVisitorId, sum, na.rm=T)) + 1))
+target$fullVisitorId <- as.character(target$fullVisitorId)
+
+# Merge trn and target
+trn <- merge(trn, target, all.x=TRUE)
+
 # Remove observations in trn where target variable is missing
-trn <- trn[!is.na(trn$totals.transactionRevenue),]
+trn <- trn[!is.na(trn$target),]
+
+# Drop unnecessary variables
+trn$totals.transactionRevenue <- NULL
+trn$sessionId <- NULL
+
+# Checkout missing values in data
+sapply(trn, function(x) sum(is.na(x)))
+sapply(tst, function(x) sum(is.na(x)))
+##Missing data in trn is all among categorical variables.
+##tst has a few missing values in totals.pageviews. Fill them with 0.
+
+# Fill missing values in trn with "missing" since it occurs only in categorical data
+trn[is.na(trn)] <- 'missing'
+
+# Fill missing tst$totals.pageviews with 0 and then remaining tst missing values with 'missing'
+tst$totals.pageviews[is.na(tst$totals.pageviews)] <- 0
+tst[is.na(tst)] <- 'missing'
+
+# Extract month and day from date data
+trn$month <- factor(month(trn$date))
+trn$day <- weekdays(trn$date)
+
+tst$month <- factor(month(tst$date))
+tst$day <- weekdays(tst$date)
+
+# Convert visitStartTime to POSIXct and extract hour
+trn$visitStartTime <- as.POSIXct(trn$visitStartTime, tz="UTC", origin='1970-01-01')
+tst$visitStartTime <- as.POSIXct(tst$visitStartTime, tz="UTC", origin='1970-01-01')
+
+trn$hour <- factor(hour(trn$visitStartTime))
+tst$hour <- factor(hour(tst$visitStartTime))
 
 
-
-
-
+sapply(trn, function(x) length(unique(x)))
 
 
 
